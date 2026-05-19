@@ -1,0 +1,111 @@
+import type { QfxSettings } from "./types";
+
+export interface Preset {
+  id: string;
+  name: string;
+  hint: string;
+  apply: (s: QfxSettings) => QfxSettings;
+}
+
+export const PRESETS: Preset[] = [
+  {
+    id: "nebula",
+    name: "Nebula",
+    hint: "Soft drifting clouds",
+    apply: (s) => ({
+      ...s,
+      motion: "gravity",
+      count: 5000,
+      size: 1.8,
+      speed: 0.4,
+      lifetime: 4,
+      bloom: true,
+      chromatic: true,
+      trails: true,
+      noise: false,
+      glow: 1.8,
+      palette: ["#7c3aed", "#ec4899", "#22d3ee"],
+      cycleColors: true,
+    }),
+  },
+  {
+    id: "quantum-rain",
+    name: "Quantum Rain",
+    hint: "Vertical streaks",
+    apply: (s) => ({
+      ...s,
+      motion: "wave",
+      count: 6000,
+      size: 1.0,
+      speed: 1.6,
+      lifetime: 1.6,
+      bloom: true,
+      chromatic: false,
+      trails: true,
+      noise: true,
+      glow: 1.2,
+      palette: ["#22d3ee", "#818cf8", "#e879f9"],
+      cycleColors: false,
+    }),
+  },
+  {
+    id: "signal-bloom",
+    name: "Signal Bloom",
+    hint: "Pulsing orbit",
+    apply: (s) => ({
+      ...s,
+      motion: "orbit",
+      count: 4500,
+      size: 1.4,
+      speed: 1,
+      lifetime: 3,
+      bloom: true,
+      chromatic: true,
+      trails: false,
+      noise: false,
+      glow: 2.2,
+      palette: ["#34d399", "#fbbf24", "#f472b6"],
+      cycleColors: true,
+    }),
+  },
+  {
+    id: "fracture",
+    name: "Fracture",
+    hint: "Sharp explosions",
+    apply: (s) => ({
+      ...s,
+      motion: "explosion",
+      count: 7000,
+      size: 1.2,
+      speed: 1.8,
+      lifetime: 1.4,
+      bloom: true,
+      chromatic: true,
+      trails: false,
+      noise: true,
+      glow: 2.6,
+      palette: ["#f43f5e", "#8b5cf6", "#06b6d4"],
+      cycleColors: false,
+    }),
+  },
+  {
+    id: "solar-drift",
+    name: "Solar Drift",
+    hint: "Warm vortex",
+    apply: (s) => ({
+      ...s,
+      motion: "vortex",
+      count: 5000,
+      size: 1.6,
+      speed: 0.9,
+      lifetime: 3.2,
+      bloom: true,
+      chromatic: true,
+      trails: true,
+      noise: false,
+      glow: 2,
+      palette: ["#fb923c", "#f472b6", "#fde047"],
+      cycleColors: true,
+    }),
+  },
+];
