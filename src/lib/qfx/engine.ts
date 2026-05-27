@@ -9,7 +9,25 @@ import {
   BlendFunction,
   KernelSize,
 } from "postprocessing";
-import type { QfxSettings } from "./types";
+import type { QfxSettings, Quality } from "./types";
+
+function qualityPixelRatio(q: Quality): number {
+  const dpr = typeof window !== "undefined" ? window.devicePixelRatio : 1;
+  const cap = q === "low" ? 1 : q === "medium" ? 1.5 : 2;
+  return Math.min(dpr, cap);
+}
+
+function qualityBloomKernel(q: Quality): KernelSize {
+  if (q === "low") return KernelSize.SMALL;
+  if (q === "medium") return KernelSize.MEDIUM;
+  return KernelSize.LARGE;
+}
+
+function qualityChromaticOffset(q: Quality): number {
+  if (q === "low") return 0.0010;
+  if (q === "medium") return 0.0014;
+  return 0.0018;
+}
 
 const VERT = /* glsl */ `
   attribute float aSize;
