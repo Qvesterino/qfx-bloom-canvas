@@ -1,6 +1,7 @@
 import type { Palette } from "./palettes";
 
 export type MotionMode = "vortex" | "wave" | "explosion" | "orbit" | "gravity";
+export type Quality = "low" | "medium" | "high";
 
 export interface QfxSettings {
   // particles
@@ -19,6 +20,8 @@ export interface QfxSettings {
   cycleColors: boolean;
   // motion
   motion: MotionMode;
+  // performance
+  quality: Quality;
   // state
   paused: boolean;
 }
@@ -36,5 +39,6 @@ export const DEFAULT_SETTINGS: QfxSettings = {
   palette: ["#7c3aed", "#ec4899", "#22d3ee"],
   cycleColors: false,
   motion: "vortex",
+  quality: "high",
   paused: false,
 };
