@@ -104,6 +104,20 @@ export function Lab() {
     toast("Screenshot saved");
   };
 
+  const onShare = async () => {
+    const url = buildShareUrl(settings);
+    try {
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", url);
+      }
+      await navigator.clipboard.writeText(url);
+      toast("Share link copied", { description: "URL encodes preset, colors & effects." });
+    } catch {
+      toast("Share link ready", { description: url });
+    }
+  };
+
+
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#05060a] text-white">
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
