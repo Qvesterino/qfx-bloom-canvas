@@ -120,6 +120,8 @@ export class QfxEngine {
   private rafId = 0;
   private time = 0;
   private cycleT = 0;
+  private fps = 60;
+  private fpsAccum = 60;
 
   constructor(canvas: HTMLCanvasElement, settings: QfxSettings) {
     this.canvas = canvas;
