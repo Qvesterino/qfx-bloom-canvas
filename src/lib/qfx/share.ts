@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type QfxSettings, type MotionMode } from "./types";
+import { DEFAULT_SETTINGS, type QfxSettings, type MotionMode, type Quality } from "./types";
 import type { Palette } from "./palettes";
 
 // Compact URL encoding using base64url of a tiny JSON shape (short keys).
@@ -8,9 +8,11 @@ type Encoded = {
   g: number;
   p: [string, string, string];
   m: MotionMode;
+  q: number;
 };
 
 const MOTIONS: MotionMode[] = ["vortex", "wave", "explosion", "orbit", "gravity"];
+const QUALITIES: Quality[] = ["low", "medium", "high"];
 
 function toB64Url(s: string): string {
   const b64 = typeof btoa !== "undefined"
@@ -51,6 +53,7 @@ export function encodeSettings(s: QfxSettings): string {
     g: round(s.glow),
     p: s.palette,
     m: s.motion,
+    q: QUALITIES.indexOf(s.quality),
   };
   return toB64Url(JSON.stringify(data));
 }
@@ -63,6 +66,7 @@ export function decodeSettings(token: string): QfxSettings | null {
       ? (obj.p as Palette)
       : DEFAULT_SETTINGS.palette;
     const motion = MOTIONS.includes(obj.m as MotionMode) ? (obj.m as MotionMode) : DEFAULT_SETTINGS.motion;
+    const quality = QUALITIES[clampInt(obj.q ?? 2, 0, 2)] ?? DEFAULT_SETTINGS.quality;
     return {
       ...DEFAULT_SETTINGS,
       count: clamp(Number(obj.c ?? DEFAULT_SETTINGS.count), 500, 10000),
@@ -77,6 +81,7 @@ export function decodeSettings(token: string): QfxSettings | null {
       glow: clamp(Number(obj.g ?? DEFAULT_SETTINGS.glow), 0, 3),
       palette,
       motion,
+      quality,
       paused: false,
     };
   } catch {
@@ -87,6 +92,11 @@ export function decodeSettings(token: string): QfxSettings | null {
 function clamp(n: number, lo: number, hi: number) {
   if (!Number.isFinite(n)) return lo;
   return Math.min(hi, Math.max(lo, n));
+}
+
+function clampInt(n: number, lo: number, hi: number) {
+  if (!Number.isFinite(n)) return lo;
+  return Math.min(hi, Math.max(lo, Math.floor(n)));
 }
 
 export function buildShareUrl(s: QfxSettings): string {
