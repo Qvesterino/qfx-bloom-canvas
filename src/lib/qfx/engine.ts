@@ -132,7 +132,7 @@ export class QfxEngine {
       alpha: false,
       powerPreference: "high-performance",
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(qualityPixelRatio(this.settings.quality));
     this.renderer.setClearColor(0x05060a, 1);
 
     this.scene = new THREE.Scene();
