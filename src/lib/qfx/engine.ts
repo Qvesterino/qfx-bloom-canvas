@@ -196,15 +196,16 @@ export class QfxEngine {
     this.renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(this.renderPass);
 
+    const q = this.settings.quality;
     this.bloom = new BloomEffect({
-      intensity: 1.4,
+      intensity: this.settings.glow,
       luminanceThreshold: 0.0,
       luminanceSmoothing: 0.4,
       mipmapBlur: true,
-      kernelSize: KernelSize.LARGE,
+      kernelSize: qualityBloomKernel(q),
     });
     this.chromatic = new ChromaticAberrationEffect({
-      offset: new THREE.Vector2(0.0018, 0.0018),
+      offset: new THREE.Vector2(qualityChromaticOffset(q), qualityChromaticOffset(q)),
       radialModulation: true,
       modulationOffset: 0.4,
     });
