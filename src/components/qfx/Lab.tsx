@@ -44,6 +44,8 @@ function randomChaos(current: QfxSettings): QfxSettings {
 export function Lab() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<QfxEngine | null>(null);
+  const [settings, setSettings] = useState<QfxSettings>(() => readSettingsFromHash() ?? DEFAULT_SETTINGS);
+
   const [settings, setSettings] = useState<QfxSettings>(DEFAULT_SETTINGS);
   const [panelOpen, setPanelOpen] = useState(true);
   const [activePreset, setActivePreset] = useState<string | null>(null);
