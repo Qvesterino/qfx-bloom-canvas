@@ -439,9 +439,18 @@ export class QfxEngine {
     this.material.uniforms.uSize.value = this.settings.size * 4;
     this.material.uniforms.uGlow.value = this.settings.glow;
     this.composer.render(dt);
+    // smooth FPS estimate
+    if (dt > 0) {
+      this.fpsAccum += (1 / dt - this.fpsAccum) * 0.08;
+      this.fps = this.fpsAccum;
+    }
   };
 
   // ===== Public API =====
+
+  getFps(): number {
+    return Math.round(this.fps);
+  }
 
   update_settings(patch: Partial<QfxSettings>) {
     const before = this.settings;
@@ -452,12 +461,22 @@ export class QfxEngine {
       patch.chromatic !== undefined ||
       patch.noise !== undefined;
 
+    const qualityChanged = patch.quality !== undefined && patch.quality !== before.quality;
+
     this.settings = next;
 
     if (patch.bloom !== undefined || patch.glow !== undefined) {
       this.bloom.intensity = next.glow;
     }
     if (effectsChanged) this.rebuildEffectPass();
+
+    if (qualityChanged) {
+      this.renderer.setPixelRatio(qualityPixelRatio(next.quality));
+      this.material.uniforms.uPixelRatio.value = this.renderer.getPixelRatio();
+      this.composer.dispose();
+      this.buildComposer();
+      this.resize();
+    }
   }
 
   clear() {
