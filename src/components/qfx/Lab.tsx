@@ -143,6 +143,10 @@ export function Lab() {
           <TbBtn onClick={onScreenshot} title="Screenshot">
             <Camera className="size-4" />
           </TbBtn>
+          <TbBtn onClick={onShare} title="Copy shareable link">
+            <Share2 className="size-4" />
+          </TbBtn>
+
           <Divider />
           <button
             onClick={onChaos}
