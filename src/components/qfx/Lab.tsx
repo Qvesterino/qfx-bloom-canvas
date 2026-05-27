@@ -7,10 +7,12 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { buildShareUrl, readSettingsFromHash } from "@/lib/qfx/share";
 import {
-  Play, Pause, Trash2, Shuffle, Camera, Zap, ChevronLeft,
+  Play, Pause, Trash2, Shuffle, Camera, Zap, ChevronLeft, Share2,
   Sparkles, Waves, Orbit, Wind, Flame,
 } from "lucide-react";
+
 
 const MOTIONS: { id: MotionMode; label: string; icon: typeof Sparkles }[] = [
   { id: "vortex", label: "Vortex", icon: Orbit },
@@ -42,7 +44,9 @@ function randomChaos(current: QfxSettings): QfxSettings {
 export function Lab() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<QfxEngine | null>(null);
-  const [settings, setSettings] = useState<QfxSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<QfxSettings>(() => readSettingsFromHash() ?? DEFAULT_SETTINGS);
+
+  
   const [panelOpen, setPanelOpen] = useState(true);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [chaosPulse, setChaosPulse] = useState(0);
@@ -100,6 +104,20 @@ export function Lab() {
     toast("Screenshot saved");
   };
 
+  const onShare = async () => {
+    const url = buildShareUrl(settings);
+    try {
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", url);
+      }
+      await navigator.clipboard.writeText(url);
+      toast("Share link copied", { description: "URL encodes preset, colors & effects." });
+    } catch {
+      toast("Share link ready", { description: url });
+    }
+  };
+
+
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#05060a] text-white">
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
@@ -125,6 +143,10 @@ export function Lab() {
           <TbBtn onClick={onScreenshot} title="Screenshot">
             <Camera className="size-4" />
           </TbBtn>
+          <TbBtn onClick={onShare} title="Copy shareable link">
+            <Share2 className="size-4" />
+          </TbBtn>
+
           <Divider />
           <button
             onClick={onChaos}
