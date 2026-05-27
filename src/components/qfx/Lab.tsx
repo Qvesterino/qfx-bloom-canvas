@@ -50,13 +50,16 @@ export function Lab() {
   const [panelOpen, setPanelOpen] = useState(true);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [chaosPulse, setChaosPulse] = useState(0);
+  const [fps, setFps] = useState(60);
 
   useEffect(() => {
     if (!canvasRef.current) return;
     const engine = new QfxEngine(canvasRef.current, settings);
     engineRef.current = engine;
     engine.randomizeBurst();
+    const iv = setInterval(() => setFps(engine.getFps()), 500);
     return () => {
+      clearInterval(iv);
       engine.dispose();
       engineRef.current = null;
     };
