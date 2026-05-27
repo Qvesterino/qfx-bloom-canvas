@@ -7,10 +7,12 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { buildShareUrl, readSettingsFromHash } from "@/lib/qfx/share";
 import {
-  Play, Pause, Trash2, Shuffle, Camera, Zap, ChevronLeft,
+  Play, Pause, Trash2, Shuffle, Camera, Zap, ChevronLeft, Share2,
   Sparkles, Waves, Orbit, Wind, Flame,
 } from "lucide-react";
+
 
 const MOTIONS: { id: MotionMode; label: string; icon: typeof Sparkles }[] = [
   { id: "vortex", label: "Vortex", icon: Orbit },
