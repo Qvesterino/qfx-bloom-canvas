@@ -462,21 +462,34 @@ export class QfxEngine {
       patch.chromatic !== undefined ||
       patch.noise !== undefined;
 
-    const qualityChanged = patch.quality !== undefined && patch.quality !== before.quality;
+    const bloomKernelChanged =
+      patch.bloomKernel !== undefined && patch.bloomKernel !== before.bloomKernel;
+    const pixelRatioChanged =
+      patch.pixelRatio !== undefined && patch.pixelRatio !== before.pixelRatio;
 
     this.settings = next;
 
     if (patch.bloom !== undefined || patch.glow !== undefined) {
       this.bloom.intensity = next.glow;
     }
-    if (effectsChanged) this.rebuildEffectPass();
+    if (patch.chromaticOffset !== undefined) {
+      this.chromatic.offset.set(next.chromaticOffset, next.chromaticOffset);
+    }
+    if (patch.noiseIntensity !== undefined) {
+      (this.noise.blendMode.opacity as { value: number }).value = next.noiseIntensity;
+    }
 
-    if (qualityChanged) {
-      this.renderer.setPixelRatio(qualityPixelRatio(next.quality));
-      this.material.uniforms.uPixelRatio.value = this.renderer.getPixelRatio();
+    if (bloomKernelChanged || pixelRatioChanged) {
+      if (pixelRatioChanged) {
+        this.renderer.setPixelRatio(clampPixelRatio(next.pixelRatio));
+        this.material.uniforms.uPixelRatio.value = this.renderer.getPixelRatio();
+      }
+      // BloomEffect has no kernelSize setter — rebuild composer.
       this.composer.dispose();
       this.buildComposer();
       this.resize();
+    } else if (effectsChanged) {
+      this.rebuildEffectPass();
     }
   }
 
