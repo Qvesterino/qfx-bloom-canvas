@@ -9,24 +9,25 @@ import {
   BlendFunction,
   KernelSize,
 } from "postprocessing";
-import type { QfxSettings, Quality } from "./types";
+import type { QfxSettings } from "./types";
 
-function qualityPixelRatio(q: Quality): number {
+function clampPixelRatio(pr: number): number {
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio : 1;
-  const cap = q === "low" ? 1 : q === "medium" ? 1.5 : 2;
-  return Math.min(dpr, cap);
+  return Math.max(1, Math.min(dpr, pr));
 }
 
-function qualityBloomKernel(q: Quality): KernelSize {
-  if (q === "low") return KernelSize.SMALL;
-  if (q === "medium") return KernelSize.MEDIUM;
-  return KernelSize.LARGE;
-}
+const KERNEL_SIZES: KernelSize[] = [
+  KernelSize.VERY_SMALL,
+  KernelSize.SMALL,
+  KernelSize.MEDIUM,
+  KernelSize.LARGE,
+  KernelSize.VERY_LARGE,
+  KernelSize.HUGE,
+];
 
-function qualityChromaticOffset(q: Quality): number {
-  if (q === "low") return 0.0010;
-  if (q === "medium") return 0.0014;
-  return 0.0018;
+function toKernelSize(n: number): KernelSize {
+  const i = Math.max(0, Math.min(KERNEL_SIZES.length - 1, Math.round(n)));
+  return KERNEL_SIZES[i];
 }
 
 const VERT = /* glsl */ `
@@ -134,7 +135,7 @@ export class QfxEngine {
       alpha: false,
       powerPreference: "high-performance",
     });
-    this.renderer.setPixelRatio(qualityPixelRatio(this.settings.quality));
+    this.renderer.setPixelRatio(clampPixelRatio(this.settings.pixelRatio));
     this.renderer.setClearColor(0x05060a, 1);
 
     this.scene = new THREE.Scene();
@@ -198,21 +199,21 @@ export class QfxEngine {
     this.renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(this.renderPass);
 
-    const q = this.settings.quality;
+    const s = this.settings;
     this.bloom = new BloomEffect({
-      intensity: this.settings.glow,
+      intensity: s.glow,
       luminanceThreshold: 0.0,
       luminanceSmoothing: 0.4,
       mipmapBlur: true,
-      kernelSize: qualityBloomKernel(q),
+      kernelSize: toKernelSize(s.bloomKernel),
     });
     this.chromatic = new ChromaticAberrationEffect({
-      offset: new THREE.Vector2(qualityChromaticOffset(q), qualityChromaticOffset(q)),
+      offset: new THREE.Vector2(s.chromaticOffset, s.chromaticOffset),
       radialModulation: true,
       modulationOffset: 0.4,
     });
     this.noise = new NoiseEffect({ blendFunction: BlendFunction.OVERLAY });
-    (this.noise.blendMode.opacity as { value: number }).value = 0.25;
+    (this.noise.blendMode.opacity as { value: number }).value = s.noiseIntensity;
 
     this.rebuildEffectPass();
   }
@@ -461,21 +462,34 @@ export class QfxEngine {
       patch.chromatic !== undefined ||
       patch.noise !== undefined;
 
-    const qualityChanged = patch.quality !== undefined && patch.quality !== before.quality;
+    const bloomKernelChanged =
+      patch.bloomKernel !== undefined && patch.bloomKernel !== before.bloomKernel;
+    const pixelRatioChanged =
+      patch.pixelRatio !== undefined && patch.pixelRatio !== before.pixelRatio;
 
     this.settings = next;
 
     if (patch.bloom !== undefined || patch.glow !== undefined) {
       this.bloom.intensity = next.glow;
     }
-    if (effectsChanged) this.rebuildEffectPass();
+    if (patch.chromaticOffset !== undefined) {
+      this.chromatic.offset.set(next.chromaticOffset, next.chromaticOffset);
+    }
+    if (patch.noiseIntensity !== undefined) {
+      (this.noise.blendMode.opacity as { value: number }).value = next.noiseIntensity;
+    }
 
-    if (qualityChanged) {
-      this.renderer.setPixelRatio(qualityPixelRatio(next.quality));
-      this.material.uniforms.uPixelRatio.value = this.renderer.getPixelRatio();
+    if (bloomKernelChanged || pixelRatioChanged) {
+      if (pixelRatioChanged) {
+        this.renderer.setPixelRatio(clampPixelRatio(next.pixelRatio));
+        this.material.uniforms.uPixelRatio.value = this.renderer.getPixelRatio();
+      }
+      // BloomEffect has no kernelSize setter — rebuild composer.
       this.composer.dispose();
       this.buildComposer();
       this.resize();
+    } else if (effectsChanged) {
+      this.rebuildEffectPass();
     }
   }
 

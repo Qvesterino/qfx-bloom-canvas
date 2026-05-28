@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { QfxEngine } from "@/lib/qfx/engine";
-import { DEFAULT_SETTINGS, type QfxSettings, type MotionMode, type Quality } from "@/lib/qfx/types";
+import { DEFAULT_SETTINGS, type QfxSettings, type MotionMode } from "@/lib/qfx/types";
 import { PRESETS } from "@/lib/qfx/presets";
 import { randomPalette, PALETTES } from "@/lib/qfx/palettes";
 import { Slider } from "@/components/ui/slider";
@@ -240,28 +240,23 @@ export function Lab() {
                 {fps}
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {(["low", "medium", "high"] as Quality[]).map((q) => {
-                const active = settings.quality === q;
-                return (
-                  <button
-                    key={q}
-                    onClick={() => patch({ quality: q })}
-                    className={`rounded-lg border py-1.5 text-[10px] font-medium capitalize transition ${
-                      active
-                        ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-200"
-                        : "border-white/10 bg-white/[0.02] text-white/50 hover:bg-white/[0.05] hover:text-white/80"
-                    }`}
-                  >
-                    {q}
-                  </button>
-                );
-              })}
+            <Sl label="Pixel ratio" value={settings.pixelRatio} min={1} max={3} step={0.25}
+              onChange={(v) => patch({ pixelRatio: v })} fmt={(v) => v.toFixed(2) + "x"} />
+            <div className="mt-1 text-[10px] text-white/30">
+              Render resolution multiplier (capped by device DPR).
             </div>
-            <div className="mt-1.5 text-[10px] text-white/30">
-              {settings.quality === "low" && "Minimal bloom, 1× pixel ratio, lighter effects"}
-              {settings.quality === "medium" && "Balanced quality for most devices"}
-              {settings.quality === "high" && "Full bloom, 2× pixel ratio, best visuals"}
+          </Section>
+
+          <Section title="Effect quality">
+            <Sl label="Bloom kernel" value={settings.bloomKernel} min={0} max={5} step={1}
+              onChange={(v) => patch({ bloomKernel: v })}
+              fmt={(v) => ["very small", "small", "medium", "large", "very large", "huge"][v] ?? String(v)} />
+            <Sl label="Noise intensity" value={settings.noiseIntensity} min={0} max={1} step={0.02}
+              onChange={(v) => patch({ noiseIntensity: v })} fmt={(v) => v.toFixed(2)} />
+            <Sl label="Chromatic offset" value={settings.chromaticOffset} min={0} max={0.005} step={0.0001}
+              onChange={(v) => patch({ chromaticOffset: v })} fmt={(v) => (v * 1000).toFixed(2) + "‰"} />
+            <div className="mt-1 text-[10px] text-white/30">
+              Tune each effect independently. Lower kernel & pixel ratio = higher FPS.
             </div>
           </Section>
 

@@ -8,11 +8,14 @@ type Encoded = {
   g: number;
   p: [string, string, string];
   m: MotionMode;
-  q: number;
+  // per-effect quality controls
+  bk: number; ni: number; co: number; pr: number;
+  // legacy quality index (kept for back-compat decode only)
+  q?: number;
 };
 
 const MOTIONS: MotionMode[] = ["vortex", "wave", "explosion", "orbit", "gravity"];
-const QUALITIES: Quality[] = ["low", "medium", "high"];
+const LEGACY_QUALITIES: Quality[] = ["low", "medium", "high"];
 
 function toB64Url(s: string): string {
   const b64 = typeof btoa !== "undefined"
@@ -53,7 +56,10 @@ export function encodeSettings(s: QfxSettings): string {
     g: round(s.glow),
     p: s.palette,
     m: s.motion,
-    q: QUALITIES.indexOf(s.quality),
+    bk: s.bloomKernel,
+    ni: round(s.noiseIntensity, 3),
+    co: round(s.chromaticOffset, 5),
+    pr: round(s.pixelRatio, 2),
   };
   return toB64Url(JSON.stringify(data));
 }
@@ -66,7 +72,13 @@ export function decodeSettings(token: string): QfxSettings | null {
       ? (obj.p as Palette)
       : DEFAULT_SETTINGS.palette;
     const motion = MOTIONS.includes(obj.m as MotionMode) ? (obj.m as MotionMode) : DEFAULT_SETTINGS.motion;
-    const quality = QUALITIES[clampInt(obj.q ?? 2, 0, 2)] ?? DEFAULT_SETTINGS.quality;
+
+    // Back-compat: derive per-effect defaults from legacy `q` quality index.
+    const legacyQ = typeof obj.q === "number" ? LEGACY_QUALITIES[clampInt(obj.q, 0, 2)] : undefined;
+    const legacyBloomKernel = legacyQ === "low" ? 1 : legacyQ === "medium" ? 2 : legacyQ === "high" ? 3 : undefined;
+    const legacyChromatic = legacyQ === "low" ? 0.0010 : legacyQ === "medium" ? 0.0014 : legacyQ === "high" ? 0.0018 : undefined;
+    const legacyPR = legacyQ === "low" ? 1 : legacyQ === "medium" ? 1.5 : legacyQ === "high" ? 2 : undefined;
+
     return {
       ...DEFAULT_SETTINGS,
       count: clamp(Number(obj.c ?? DEFAULT_SETTINGS.count), 500, 10000),
@@ -79,9 +91,12 @@ export function decodeSettings(token: string): QfxSettings | null {
       noise: !!obj.n,
       cycleColors: !!obj.cc,
       glow: clamp(Number(obj.g ?? DEFAULT_SETTINGS.glow), 0, 3),
+      bloomKernel: clampInt(Number(obj.bk ?? legacyBloomKernel ?? DEFAULT_SETTINGS.bloomKernel), 0, 5),
+      noiseIntensity: clamp(Number(obj.ni ?? DEFAULT_SETTINGS.noiseIntensity), 0, 1),
+      chromaticOffset: clamp(Number(obj.co ?? legacyChromatic ?? DEFAULT_SETTINGS.chromaticOffset), 0, 0.005),
+      pixelRatio: clamp(Number(obj.pr ?? legacyPR ?? DEFAULT_SETTINGS.pixelRatio), 1, 3),
       palette,
       motion,
-      quality,
       paused: false,
     };
   } catch {
