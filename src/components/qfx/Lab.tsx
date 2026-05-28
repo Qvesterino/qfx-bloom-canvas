@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { QfxEngine } from "@/lib/qfx/engine";
-import { DEFAULT_SETTINGS, type QfxSettings, type MotionMode, type Quality } from "@/lib/qfx/types";
+import { DEFAULT_SETTINGS, type QfxSettings, type MotionMode } from "@/lib/qfx/types";
 import { PRESETS } from "@/lib/qfx/presets";
 import { randomPalette, PALETTES } from "@/lib/qfx/palettes";
 import { Slider } from "@/components/ui/slider";
