@@ -199,21 +199,21 @@ export class QfxEngine {
     this.renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(this.renderPass);
 
-    const q = this.settings.quality;
+    const s = this.settings;
     this.bloom = new BloomEffect({
-      intensity: this.settings.glow,
+      intensity: s.glow,
       luminanceThreshold: 0.0,
       luminanceSmoothing: 0.4,
       mipmapBlur: true,
-      kernelSize: qualityBloomKernel(q),
+      kernelSize: toKernelSize(s.bloomKernel),
     });
     this.chromatic = new ChromaticAberrationEffect({
-      offset: new THREE.Vector2(qualityChromaticOffset(q), qualityChromaticOffset(q)),
+      offset: new THREE.Vector2(s.chromaticOffset, s.chromaticOffset),
       radialModulation: true,
       modulationOffset: 0.4,
     });
     this.noise = new NoiseEffect({ blendFunction: BlendFunction.OVERLAY });
-    (this.noise.blendMode.opacity as { value: number }).value = 0.25;
+    (this.noise.blendMode.opacity as { value: number }).value = s.noiseIntensity;
 
     this.rebuildEffectPass();
   }
