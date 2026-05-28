@@ -8,11 +8,14 @@ type Encoded = {
   g: number;
   p: [string, string, string];
   m: MotionMode;
-  q: number;
+  // per-effect quality controls
+  bk: number; ni: number; co: number; pr: number;
+  // legacy quality index (kept for back-compat decode only)
+  q?: number;
 };
 
 const MOTIONS: MotionMode[] = ["vortex", "wave", "explosion", "orbit", "gravity"];
-const QUALITIES: Quality[] = ["low", "medium", "high"];
+const LEGACY_QUALITIES: Quality[] = ["low", "medium", "high"];
 
 function toB64Url(s: string): string {
   const b64 = typeof btoa !== "undefined"
