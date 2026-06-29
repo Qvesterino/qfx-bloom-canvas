@@ -387,11 +387,32 @@ export function Lab() {
           <Section title="Effects">
             <Tg label="Bloom" value={settings.bloom} onChange={(v) => patch({ bloom: v })} />
             <Tg label="Chromatic Aberration" value={settings.chromatic} onChange={(v) => patch({ chromatic: v })} />
-            <Tg label="Trails" value={settings.trails} onChange={(v) => patch({ trails: v })} />
+            <Tg label="Trails (points)" value={settings.trails} onChange={(v) => patch({ trails: v })} />
+            <Tg label="Ribbon trails" value={settings.ribbons} onChange={(v) => patch({ ribbons: v })} />
             <Tg label="Noise / Distortion" value={settings.noise} onChange={(v) => patch({ noise: v })} />
+            <Tg label="Depth of field" value={settings.dof} onChange={(v) => patch({ dof: v })} />
+            <Tg label="God rays" value={settings.godRays} onChange={(v) => patch({ godRays: v })} />
             <Sl label="Glow" value={settings.glow} min={0} max={3} step={0.05}
               onChange={(v) => patch({ glow: v })} fmt={(v) => v.toFixed(2)} />
           </Section>
+
+          {(settings.dof || settings.godRays) && (
+            <Section title="Cinematic">
+              {settings.dof && (
+                <>
+                  <Sl label="DOF · bokeh" value={settings.dofBokeh} min={0} max={6} step={0.1}
+                    onChange={(v) => patch({ dofBokeh: v })} fmt={(v) => v.toFixed(1)} />
+                  <Sl label="DOF · focus" value={settings.dofFocus} min={0} max={1} step={0.01}
+                    onChange={(v) => patch({ dofFocus: v })} fmt={(v) => v.toFixed(2)} />
+                </>
+              )}
+              {settings.godRays && (
+                <Sl label="God rays · intensity" value={settings.godRaysIntensity} min={0} max={1} step={0.01}
+                  onChange={(v) => patch({ godRaysIntensity: v })} fmt={(v) => v.toFixed(2)} />
+              )}
+            </Section>
+          )}
+
 
           <Section title="Color">
             <div className="mb-3 flex h-9 gap-1 overflow-hidden rounded-lg ring-1 ring-white/10">
