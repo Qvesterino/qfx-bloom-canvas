@@ -255,6 +255,70 @@ export function Lab() {
             </div>
           </Section>
 
+          <Section title="Shape attractor">
+            <div className="mb-2 flex items-center gap-1.5">
+              <div className="relative flex-1">
+                <Type className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-white/40" />
+                <Input
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") onApplyText(); }}
+                  placeholder="Type a word…"
+                  className="h-8 border-white/10 bg-white/[0.04] pl-7 text-[12px] text-white placeholder:text-white/30 focus-visible:ring-fuchsia-400/40"
+                />
+              </div>
+              <Button
+                size="sm"
+                onClick={onApplyText}
+                className="h-8 bg-gradient-to-r from-fuchsia-500 to-cyan-400 px-3 text-[11px] font-medium text-white hover:brightness-110"
+              >
+                Apply
+              </Button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onImageFile(f);
+                  if (fileRef.current) fileRef.current.value = "";
+                }}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => fileRef.current?.click()}
+                className="h-8 flex-1 border border-white/10 bg-white/[0.04] text-[11px] text-white/80 hover:bg-white/[0.08]"
+              >
+                <ImageIcon className="mr-1.5 size-3.5" />
+                Upload image
+              </Button>
+              {shapeActive && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={onReleaseShape}
+                  title="Release shape"
+                  className="h-8 border border-white/10 bg-white/[0.04] px-2 text-[11px] text-white/80 hover:bg-rose-500/10 hover:text-rose-300"
+                >
+                  <X className="size-3.5" />
+                </Button>
+              )}
+            </div>
+            <div className="mt-2">
+              <Sl label="Shape strength" value={settings.shapeStrength} min={0.1} max={1} step={0.01}
+                onChange={(v) => patch({ shapeStrength: v })} fmt={(v) => v.toFixed(2)} />
+            </div>
+            <div className="mt-1 text-[10px] text-white/30">
+              Particles spring toward sampled targets. Type a word or upload an image.
+            </div>
+          </Section>
+
+
+
           <Section title="Motion">
             <div className="grid grid-cols-5 gap-1.5">
               {MOTIONS.map((m) => {
