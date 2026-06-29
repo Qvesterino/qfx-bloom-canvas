@@ -60,6 +60,13 @@ export function encodeSettings(s: QfxSettings): string {
     ni: round(s.noiseIntensity, 3),
     co: round(s.chromaticOffset, 5),
     pr: round(s.pixelRatio, 2),
+    rb: s.ribbons ? 1 : 0,
+    df: s.dof ? 1 : 0,
+    gr: s.godRays ? 1 : 0,
+    db: round(s.dofBokeh, 2),
+    dfo: round(s.dofFocus, 3),
+    gri: round(s.godRaysIntensity, 3),
+    ss: round(s.shapeStrength, 3),
   };
   return toB64Url(JSON.stringify(data));
 }
