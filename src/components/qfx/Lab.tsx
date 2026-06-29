@@ -3,14 +3,16 @@ import { QfxEngine } from "@/lib/qfx/engine";
 import { DEFAULT_SETTINGS, type QfxSettings, type MotionMode } from "@/lib/qfx/types";
 import { PRESETS } from "@/lib/qfx/presets";
 import { randomPalette, PALETTES } from "@/lib/qfx/palettes";
+import { sampleText, sampleImage } from "@/lib/qfx/shapes";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { buildShareUrl, readSettingsFromHash } from "@/lib/qfx/share";
 import {
   Play, Pause, Trash2, Shuffle, Camera, Zap, ChevronLeft, Share2,
-  Sparkles, Waves, Orbit, Wind, Flame, Gauge,
+  Sparkles, Waves, Orbit, Wind, Flame, Gauge, Type, Image as ImageIcon, X,
 } from "lucide-react";
 
 
