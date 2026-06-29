@@ -3,14 +3,16 @@ import { QfxEngine } from "@/lib/qfx/engine";
 import { DEFAULT_SETTINGS, type QfxSettings, type MotionMode } from "@/lib/qfx/types";
 import { PRESETS } from "@/lib/qfx/presets";
 import { randomPalette, PALETTES } from "@/lib/qfx/palettes";
+import { sampleText, sampleImage } from "@/lib/qfx/shapes";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { buildShareUrl, readSettingsFromHash } from "@/lib/qfx/share";
 import {
   Play, Pause, Trash2, Shuffle, Camera, Zap, ChevronLeft, Share2,
-  Sparkles, Waves, Orbit, Wind, Flame, Gauge,
+  Sparkles, Waves, Orbit, Wind, Flame, Gauge, Type, Image as ImageIcon, X,
 } from "lucide-react";
 
 
@@ -51,6 +53,9 @@ export function Lab() {
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [chaosPulse, setChaosPulse] = useState(0);
   const [fps, setFps] = useState(60);
+  const [shapeActive, setShapeActive] = useState(false);
+  const [textInput, setTextInput] = useState("QFX");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -119,6 +124,50 @@ export function Lab() {
       toast("Share link ready", { description: url });
     }
   };
+
+  const onApplyText = () => {
+    const t = textInput.trim();
+    if (!t) return;
+    const target = sampleText(t, { fontSize: 220 });
+    if (target.count < 50) {
+      toast("Text too thin", { description: "Try a longer word." });
+      return;
+    }
+    engineRef.current?.applyShape(target);
+    setShapeActive(true);
+    setActivePreset(null);
+    toast("Text shape applied", { description: `${target.count.toLocaleString()} target points` });
+  };
+
+  const onImageFile = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const target = sampleImage(img, 1);
+      URL.revokeObjectURL(url);
+      if (target.count < 50) {
+        toast("Image too sparse", { description: "Try a clearer image." });
+        return;
+      }
+      engineRef.current?.applyShape(target);
+      setShapeActive(true);
+      setActivePreset(null);
+      toast("Image shape applied", { description: `${target.count.toLocaleString()} target points` });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      toast("Couldn't load image");
+    };
+    img.src = url;
+  };
+
+  const onReleaseShape = () => {
+    engineRef.current?.clearShape();
+    setShapeActive(false);
+    toast("Shape released");
+  };
+
+
 
 
   return (
@@ -206,6 +255,70 @@ export function Lab() {
             </div>
           </Section>
 
+          <Section title="Shape attractor">
+            <div className="mb-2 flex items-center gap-1.5">
+              <div className="relative flex-1">
+                <Type className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-white/40" />
+                <Input
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") onApplyText(); }}
+                  placeholder="Type a word…"
+                  className="h-8 border-white/10 bg-white/[0.04] pl-7 text-[12px] text-white placeholder:text-white/30 focus-visible:ring-fuchsia-400/40"
+                />
+              </div>
+              <Button
+                size="sm"
+                onClick={onApplyText}
+                className="h-8 bg-gradient-to-r from-fuchsia-500 to-cyan-400 px-3 text-[11px] font-medium text-white hover:brightness-110"
+              >
+                Apply
+              </Button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onImageFile(f);
+                  if (fileRef.current) fileRef.current.value = "";
+                }}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => fileRef.current?.click()}
+                className="h-8 flex-1 border border-white/10 bg-white/[0.04] text-[11px] text-white/80 hover:bg-white/[0.08]"
+              >
+                <ImageIcon className="mr-1.5 size-3.5" />
+                Upload image
+              </Button>
+              {shapeActive && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={onReleaseShape}
+                  title="Release shape"
+                  className="h-8 border border-white/10 bg-white/[0.04] px-2 text-[11px] text-white/80 hover:bg-rose-500/10 hover:text-rose-300"
+                >
+                  <X className="size-3.5" />
+                </Button>
+              )}
+            </div>
+            <div className="mt-2">
+              <Sl label="Shape strength" value={settings.shapeStrength} min={0.1} max={1} step={0.01}
+                onChange={(v) => patch({ shapeStrength: v })} fmt={(v) => v.toFixed(2)} />
+            </div>
+            <div className="mt-1 text-[10px] text-white/30">
+              Particles spring toward sampled targets. Type a word or upload an image.
+            </div>
+          </Section>
+
+
+
           <Section title="Motion">
             <div className="grid grid-cols-5 gap-1.5">
               {MOTIONS.map((m) => {
@@ -274,11 +387,32 @@ export function Lab() {
           <Section title="Effects">
             <Tg label="Bloom" value={settings.bloom} onChange={(v) => patch({ bloom: v })} />
             <Tg label="Chromatic Aberration" value={settings.chromatic} onChange={(v) => patch({ chromatic: v })} />
-            <Tg label="Trails" value={settings.trails} onChange={(v) => patch({ trails: v })} />
+            <Tg label="Trails (points)" value={settings.trails} onChange={(v) => patch({ trails: v })} />
+            <Tg label="Ribbon trails" value={settings.ribbons} onChange={(v) => patch({ ribbons: v })} />
             <Tg label="Noise / Distortion" value={settings.noise} onChange={(v) => patch({ noise: v })} />
+            <Tg label="Depth of field" value={settings.dof} onChange={(v) => patch({ dof: v })} />
+            <Tg label="God rays" value={settings.godRays} onChange={(v) => patch({ godRays: v })} />
             <Sl label="Glow" value={settings.glow} min={0} max={3} step={0.05}
               onChange={(v) => patch({ glow: v })} fmt={(v) => v.toFixed(2)} />
           </Section>
+
+          {(settings.dof || settings.godRays) && (
+            <Section title="Cinematic">
+              {settings.dof && (
+                <>
+                  <Sl label="DOF · bokeh" value={settings.dofBokeh} min={0} max={6} step={0.1}
+                    onChange={(v) => patch({ dofBokeh: v })} fmt={(v) => v.toFixed(1)} />
+                  <Sl label="DOF · focus" value={settings.dofFocus} min={0} max={1} step={0.01}
+                    onChange={(v) => patch({ dofFocus: v })} fmt={(v) => v.toFixed(2)} />
+                </>
+              )}
+              {settings.godRays && (
+                <Sl label="God rays · intensity" value={settings.godRaysIntensity} min={0} max={1} step={0.01}
+                  onChange={(v) => patch({ godRaysIntensity: v })} fmt={(v) => v.toFixed(2)} />
+              )}
+            </Section>
+          )}
+
 
           <Section title="Color">
             <div className="mb-3 flex h-9 gap-1 overflow-hidden rounded-lg ring-1 ring-white/10">

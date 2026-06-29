@@ -5,16 +5,16 @@ import type { Palette } from "./palettes";
 type Encoded = {
   c: number; s: number; sp: number; lt: number;
   b: 0 | 1; ca: 0 | 1; tr: 0 | 1; n: 0 | 1; cc: 0 | 1;
+  rb?: 0 | 1; df?: 0 | 1; gr?: 0 | 1;
   g: number;
   p: [string, string, string];
   m: MotionMode;
-  // per-effect quality controls
   bk: number; ni: number; co: number; pr: number;
-  // legacy quality index (kept for back-compat decode only)
+  db?: number; dfo?: number; gri?: number; ss?: number;
   q?: number;
 };
 
-const MOTIONS: MotionMode[] = ["vortex", "wave", "explosion", "orbit", "gravity"];
+const MOTIONS: MotionMode[] = ["vortex", "wave", "explosion", "orbit", "gravity", "shape"];
 const LEGACY_QUALITIES: Quality[] = ["low", "medium", "high"];
 
 function toB64Url(s: string): string {
@@ -60,6 +60,13 @@ export function encodeSettings(s: QfxSettings): string {
     ni: round(s.noiseIntensity, 3),
     co: round(s.chromaticOffset, 5),
     pr: round(s.pixelRatio, 2),
+    rb: s.ribbons ? 1 : 0,
+    df: s.dof ? 1 : 0,
+    gr: s.godRays ? 1 : 0,
+    db: round(s.dofBokeh, 2),
+    dfo: round(s.dofFocus, 3),
+    gri: round(s.godRaysIntensity, 3),
+    ss: round(s.shapeStrength, 3),
   };
   return toB64Url(JSON.stringify(data));
 }
@@ -95,6 +102,13 @@ export function decodeSettings(token: string): QfxSettings | null {
       noiseIntensity: clamp(Number(obj.ni ?? DEFAULT_SETTINGS.noiseIntensity), 0, 1),
       chromaticOffset: clamp(Number(obj.co ?? legacyChromatic ?? DEFAULT_SETTINGS.chromaticOffset), 0, 0.005),
       pixelRatio: clamp(Number(obj.pr ?? legacyPR ?? DEFAULT_SETTINGS.pixelRatio), 1, 3),
+      ribbons: !!obj.rb,
+      dof: !!obj.df,
+      godRays: !!obj.gr,
+      dofBokeh: clamp(Number(obj.db ?? DEFAULT_SETTINGS.dofBokeh), 0, 6),
+      dofFocus: clamp(Number(obj.dfo ?? DEFAULT_SETTINGS.dofFocus), 0, 1),
+      godRaysIntensity: clamp(Number(obj.gri ?? DEFAULT_SETTINGS.godRaysIntensity), 0, 1),
+      shapeStrength: clamp(Number(obj.ss ?? DEFAULT_SETTINGS.shapeStrength), 0, 1),
       palette,
       motion,
       paused: false,
