@@ -5,12 +5,12 @@ import type { Palette } from "./palettes";
 type Encoded = {
   c: number; s: number; sp: number; lt: number;
   b: 0 | 1; ca: 0 | 1; tr: 0 | 1; n: 0 | 1; cc: 0 | 1;
+  rb?: 0 | 1; df?: 0 | 1; gr?: 0 | 1;
   g: number;
   p: [string, string, string];
   m: MotionMode;
-  // per-effect quality controls
   bk: number; ni: number; co: number; pr: number;
-  // legacy quality index (kept for back-compat decode only)
+  db?: number; dfo?: number; gri?: number; ss?: number;
   q?: number;
 };
 
