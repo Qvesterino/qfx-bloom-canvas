@@ -125,6 +125,50 @@ export function Lab() {
     }
   };
 
+  const onApplyText = () => {
+    const t = textInput.trim();
+    if (!t) return;
+    const target = sampleText(t, { fontSize: 220 });
+    if (target.count < 50) {
+      toast("Text too thin", { description: "Try a longer word." });
+      return;
+    }
+    engineRef.current?.applyShape(target);
+    setShapeActive(true);
+    setActivePreset(null);
+    toast("Text shape applied", { description: `${target.count.toLocaleString()} target points` });
+  };
+
+  const onImageFile = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const target = sampleImage(img, 1);
+      URL.revokeObjectURL(url);
+      if (target.count < 50) {
+        toast("Image too sparse", { description: "Try a clearer image." });
+        return;
+      }
+      engineRef.current?.applyShape(target);
+      setShapeActive(true);
+      setActivePreset(null);
+      toast("Image shape applied", { description: `${target.count.toLocaleString()} target points` });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      toast("Couldn't load image");
+    };
+    img.src = url;
+  };
+
+  const onReleaseShape = () => {
+    engineRef.current?.clearShape();
+    setShapeActive(false);
+    toast("Shape released");
+  };
+
+
+
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#05060a] text-white">
