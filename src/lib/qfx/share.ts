@@ -14,7 +14,7 @@ type Encoded = {
   q?: number;
 };
 
-const MOTIONS: MotionMode[] = ["vortex", "wave", "explosion", "orbit", "gravity"];
+const MOTIONS: MotionMode[] = ["vortex", "wave", "explosion", "orbit", "gravity", "shape"];
 const LEGACY_QUALITIES: Quality[] = ["low", "medium", "high"];
 
 function toB64Url(s: string): string {
