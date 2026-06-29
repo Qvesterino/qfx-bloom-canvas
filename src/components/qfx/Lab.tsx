@@ -53,6 +53,9 @@ export function Lab() {
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [chaosPulse, setChaosPulse] = useState(0);
   const [fps, setFps] = useState(60);
+  const [shapeActive, setShapeActive] = useState(false);
+  const [textInput, setTextInput] = useState("QFX");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!canvasRef.current) return;
