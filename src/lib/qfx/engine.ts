@@ -6,10 +6,14 @@ import {
   BloomEffect,
   ChromaticAberrationEffect,
   NoiseEffect,
+  DepthOfFieldEffect,
+  GodRaysEffect,
   BlendFunction,
   KernelSize,
 } from "postprocessing";
 import type { QfxSettings } from "./types";
+import { RibbonSystem } from "./ribbons";
+import type { ShapeTargets } from "./shapes";
 
 function clampPixelRatio(pr: number): number {
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio : 1;
@@ -83,6 +87,9 @@ function paletteColor(palette: string[], t: number): [number, number, number] {
   return mixColor(hexToRGB(palette[i % n]), hexToRGB(palette[(i + 1) % n]), f);
 }
 
+const RIBBON_COUNT = 256;
+const RIBBON_SEG = 28;
+
 export class QfxEngine {
   private canvas: HTMLCanvasElement;
   private renderer: THREE.WebGLRenderer;
@@ -92,12 +99,19 @@ export class QfxEngine {
   private bloom!: BloomEffect;
   private chromatic!: ChromaticAberrationEffect;
   private noise!: NoiseEffect;
+  private dof!: DepthOfFieldEffect;
+  private godRays!: GodRaysEffect;
   private effectPass!: EffectPass;
   private renderPass!: RenderPass;
+
+  // Sun mesh for god rays
+  private sunMesh!: THREE.Mesh;
 
   private geometry!: THREE.BufferGeometry;
   private material!: THREE.ShaderMaterial;
   private points!: THREE.Points;
+
+  private ribbons!: RibbonSystem;
 
   // particle pool (CPU side)
   private cap: number;
@@ -111,6 +125,7 @@ export class QfxEngine {
   private age!: Float32Array;
   private life!: Float32Array;
   private alive!: Uint8Array;
+  private targetIdx!: Uint16Array;
   private cursor = 0;
   private aliveCount = 0;
 
@@ -124,10 +139,17 @@ export class QfxEngine {
   private fps = 60;
   private fpsAccum = 60;
 
+  // Shape target cloud (xyz triplets). null = no shape attractor.
+  private shapeTargets: Float32Array | null = null;
+  private shapeCount = 0;
+
+  // Ribbon update throttle
+  private ribbonAccum = 0;
+
   constructor(canvas: HTMLCanvasElement, settings: QfxSettings) {
     this.canvas = canvas;
     this.settings = { ...settings };
-    this.cap = 10000; // hard cap of pool
+    this.cap = 10000;
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -144,7 +166,20 @@ export class QfxEngine {
     this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
     this.camera.position.set(0, 0, 80);
 
+    // Sun mesh (god-rays source). Visible only when godRays is on.
+    const sunGeo = new THREE.SphereGeometry(2.4, 32, 16);
+    const sunMat = new THREE.MeshBasicMaterial({ color: 0xfff2c8 });
+    this.sunMesh = new THREE.Mesh(sunGeo, sunMat);
+    this.sunMesh.position.set(0, 0, -10);
+    this.sunMesh.visible = this.settings.godRays;
+    this.scene.add(this.sunMesh);
+
     this.buildParticles();
+    this.ribbons = new RibbonSystem(RIBBON_COUNT, RIBBON_SEG);
+    this.scene.add(this.ribbons.lines);
+    this.ribbons.setVisible(this.settings.ribbons);
+    this.ribbons.setGlow(this.settings.glow);
+
     this.buildComposer();
     this.resize();
 
@@ -168,6 +203,7 @@ export class QfxEngine {
     this.age = new Float32Array(cap);
     this.life = new Float32Array(cap);
     this.alive = new Uint8Array(cap);
+    this.targetIdx = new Uint16Array(cap);
 
     this.geometry = new THREE.BufferGeometry();
     this.geometry.setAttribute("position", new THREE.BufferAttribute(this.posArr, 3).setUsage(THREE.DynamicDrawUsage));
@@ -215,6 +251,22 @@ export class QfxEngine {
     this.noise = new NoiseEffect({ blendFunction: BlendFunction.OVERLAY });
     (this.noise.blendMode.opacity as { value: number }).value = s.noiseIntensity;
 
+    this.dof = new DepthOfFieldEffect(this.camera, {
+      focusDistance: s.dofFocus,
+      focalLength: 0.05,
+      bokehScale: s.dofBokeh,
+    });
+
+    this.godRays = new GodRaysEffect(this.camera, this.sunMesh, {
+      density: 0.96,
+      decay: 0.94,
+      weight: 0.35,
+      exposure: s.godRaysIntensity,
+      samples: 60,
+      blendFunction: BlendFunction.SCREEN,
+      kernelSize: KernelSize.SMALL,
+    });
+
     this.rebuildEffectPass();
   }
 
@@ -224,11 +276,13 @@ export class QfxEngine {
       this.effectPass.dispose();
     }
     const effects = [];
+    // Order matters: DOF before bloom; god rays as screen blend; chromatic late; noise last.
+    if (this.settings.dof) effects.push(this.dof);
+    if (this.settings.godRays) effects.push(this.godRays);
     if (this.settings.bloom) effects.push(this.bloom);
     if (this.settings.chromatic) effects.push(this.chromatic);
     if (this.settings.noise) effects.push(this.noise);
     if (effects.length === 0) {
-      // need at least one pass that writes to screen
       this.effectPass = new EffectPass(this.camera);
     } else {
       this.effectPass = new EffectPass(this.camera, ...effects);
@@ -266,7 +320,7 @@ export class QfxEngine {
     const dy = this.mouse.y - this.prevMouse.y;
     const speed = Math.min(Math.hypot(dx, dy), 60);
     const spawn = Math.max(1, Math.floor(speed * 0.6));
-    this.spawnAt(this.mouse.world, spawn);
+    if (!this.shapeTargets) this.spawnAt(this.mouse.world, spawn);
   };
 
   private onPointerDown = (e: PointerEvent) => {
@@ -281,12 +335,11 @@ export class QfxEngine {
     const palette = this.settings.palette;
     for (let i = 0; i < n; i++) {
       let idx = -1;
-      // find slot within max range
       for (let tries = 0; tries < 8; tries++) {
         const c = this.cursor % max;
         this.cursor = (this.cursor + 1) % max;
         if (!this.alive[c]) { idx = c; break; }
-        idx = c; // overwrite
+        idx = c;
       }
       if (idx < 0) idx = 0;
 
@@ -306,8 +359,9 @@ export class QfxEngine {
       this.velZ[idx] = (Math.random() - 0.5) * 2;
 
       const baseLife = this.settings.lifetime * (this.settings.trails ? 2.2 : 1) * (0.7 + Math.random() * 0.6);
-      this.life[idx] = baseLife;
+      this.life[idx] = this.shapeTargets ? baseLife * 4 : baseLife;
       this.age[idx] = 0;
+      this.targetIdx[idx] = this.shapeCount > 0 ? (idx % this.shapeCount) : 0;
 
       const col = paletteColor(palette, Math.random() + t);
       this.colArr[idx * 3] = col[0];
@@ -319,28 +373,56 @@ export class QfxEngine {
     }
   }
 
+  /** Fill the live pool with N particles distributed around the scene; used for shape mode. */
+  private fillPool(n: number) {
+    const cap = this.cap;
+    const max = Math.min(this.settings.count, cap, n);
+    const palette = this.settings.palette;
+    for (let i = 0; i < max; i++) {
+      this.alive[i] = 1;
+      this.posArr[i * 3] = (Math.random() - 0.5) * 80;
+      this.posArr[i * 3 + 1] = (Math.random() - 0.5) * 60;
+      this.posArr[i * 3 + 2] = (Math.random() - 0.5) * 20;
+      this.velX[i] = (Math.random() - 0.5) * 4;
+      this.velY[i] = (Math.random() - 0.5) * 4;
+      this.velZ[i] = (Math.random() - 0.5) * 2;
+      this.life[i] = 9999;
+      this.age[i] = 0;
+      this.targetIdx[i] = this.shapeCount > 0 ? (i % this.shapeCount) : 0;
+      const col = paletteColor(palette, Math.random());
+      this.colArr[i * 3] = col[0];
+      this.colArr[i * 3 + 1] = col[1];
+      this.colArr[i * 3 + 2] = col[2];
+      this.sizeArr[i] = 0.8 + Math.random() * 0.8;
+      this.alphaArr[i] = 1;
+    }
+    this.aliveCount = max;
+  }
+
   private update(dt: number) {
     this.time += dt;
     if (this.settings.cycleColors) this.cycleT += dt * 0.1;
 
-    const mode = this.settings.motion;
+    const mode: string = this.shapeTargets ? "shape" : this.settings.motion;
     const speed = this.settings.speed;
     const cap = this.cap;
     const max = Math.min(this.settings.count, cap);
+    const targets = this.shapeTargets;
+    const targetCount = this.shapeCount;
+    const k = this.settings.shapeStrength;
 
     for (let i = 0; i < max; i++) {
       if (!this.alive[i]) continue;
       const age = this.age[i] + dt;
-      if (age >= this.life[i]) {
+      if (mode !== "shape" && age >= this.life[i]) {
         this.alive[i] = 0;
         this.aliveCount--;
         this.alphaArr[i] = 0;
-        // hide
         this.posArr[i * 3 + 2] = 9999;
         continue;
       }
       this.age[i] = age;
-      const lifeT = age / this.life[i];
+      const lifeT = mode === "shape" ? 0.5 : age / this.life[i];
 
       const ix = i * 3;
       let px = this.posArr[ix];
@@ -351,6 +433,26 @@ export class QfxEngine {
       let vz = this.velZ[i];
 
       switch (mode) {
+        case "shape": {
+          if (targets && targetCount > 0) {
+            const t = (this.targetIdx[i] % targetCount) * 3;
+            const tx = targets[t];
+            const ty = targets[t + 1];
+            const tz = targets[t + 2];
+            const ax = (tx - px);
+            const ay = (ty - py);
+            const az = (tz - pz);
+            const stiffness = 8 * k;
+            const damping = 4 * k + 1.5;
+            vx += ax * stiffness * dt - vx * damping * dt;
+            vy += ay * stiffness * dt - vy * damping * dt;
+            vz += az * stiffness * dt - vz * damping * dt;
+            // tiny shimmer
+            vx += (Math.random() - 0.5) * 0.4;
+            vy += (Math.random() - 0.5) * 0.4;
+          }
+          break;
+        }
         case "vortex": {
           const r = Math.hypot(px, py) + 0.0001;
           const ang = 1.6 / (r * 0.05 + 1);
@@ -407,8 +509,9 @@ export class QfxEngine {
       this.velY[i] = vy;
       this.velZ[i] = vz;
 
-      // alpha curve: fade in fast, fade out slow
-      const a = lifeT < 0.1 ? lifeT / 0.1 : 1 - (lifeT - 0.1) / 0.9;
+      const a = mode === "shape"
+        ? 1
+        : (lifeT < 0.1 ? lifeT / 0.1 : 1 - (lifeT - 0.1) / 0.9);
       this.alphaArr[i] = a;
 
       if (this.settings.cycleColors) {
@@ -425,6 +528,21 @@ export class QfxEngine {
     (this.geometry.attributes.aAlpha as THREE.BufferAttribute).needsUpdate = true;
     (this.geometry.attributes.aColor as THREE.BufferAttribute).needsUpdate = true;
 
+    // Ribbons — sample current state from first RIBBON_COUNT particles.
+    if (this.settings.ribbons) {
+      this.ribbonAccum += dt;
+      const interval = 1 / 45;
+      if (this.ribbonAccum >= interval) {
+        this.ribbonAccum = 0;
+        const R = RIBBON_COUNT;
+        const sliceP = this.posArr.subarray(0, R * 3) as Float32Array;
+        const sliceC = this.colArr.subarray(0, R * 3) as Float32Array;
+        const sliceA = this.alive.subarray(0, R) as Uint8Array;
+        this.ribbons.pushSamples(sliceP, sliceC, sliceA);
+        this.ribbons.rebuild();
+      }
+    }
+
     // ambient camera motion
     this.camera.position.x = Math.sin(this.time * 0.12) * 4;
     this.camera.position.y = Math.cos(this.time * 0.1) * 3;
@@ -439,8 +557,8 @@ export class QfxEngine {
     }
     this.material.uniforms.uSize.value = this.settings.size * 4;
     this.material.uniforms.uGlow.value = this.settings.glow;
+    this.ribbons.setGlow(this.settings.glow);
     this.composer.render(dt);
-    // smooth FPS estimate
     if (dt > 0) {
       this.fpsAccum += (1 / dt - this.fpsAccum) * 0.08;
       this.fps = this.fpsAccum;
@@ -460,7 +578,9 @@ export class QfxEngine {
     const effectsChanged =
       patch.bloom !== undefined ||
       patch.chromatic !== undefined ||
-      patch.noise !== undefined;
+      patch.noise !== undefined ||
+      patch.dof !== undefined ||
+      patch.godRays !== undefined;
 
     const bloomKernelChanged =
       patch.bloomKernel !== undefined && patch.bloomKernel !== before.bloomKernel;
@@ -478,13 +598,30 @@ export class QfxEngine {
     if (patch.noiseIntensity !== undefined) {
       (this.noise.blendMode.opacity as { value: number }).value = next.noiseIntensity;
     }
+    if (patch.dofBokeh !== undefined) {
+      this.dof.bokehScale = next.dofBokeh;
+    }
+    if (patch.dofFocus !== undefined) {
+      const cocMat = (this.dof as unknown as { cocMaterial?: { uniforms?: Record<string, { value: number }> } }).cocMaterial;
+      if (cocMat?.uniforms?.focusDistance) cocMat.uniforms.focusDistance.value = next.dofFocus;
+    }
+    if (patch.godRaysIntensity !== undefined) {
+      const grMat = (this.godRays as unknown as { godRaysMaterial?: { uniforms?: Record<string, { value: number }> } }).godRaysMaterial;
+      if (grMat?.uniforms?.exposure) grMat.uniforms.exposure.value = next.godRaysIntensity;
+    }
+    if (patch.ribbons !== undefined) {
+      this.ribbons.setVisible(next.ribbons);
+      if (!next.ribbons) this.ribbons.reset();
+    }
+    if (patch.godRays !== undefined) {
+      this.sunMesh.visible = next.godRays;
+    }
 
     if (bloomKernelChanged || pixelRatioChanged) {
       if (pixelRatioChanged) {
         this.renderer.setPixelRatio(clampPixelRatio(next.pixelRatio));
         this.material.uniforms.uPixelRatio.value = this.renderer.getPixelRatio();
       }
-      // BloomEffect has no kernelSize setter — rebuild composer.
       this.composer.dispose();
       this.buildComposer();
       this.resize();
@@ -498,6 +635,7 @@ export class QfxEngine {
     this.alphaArr.fill(0);
     for (let i = 0; i < this.posArr.length; i += 3) this.posArr[i + 2] = 9999;
     this.aliveCount = 0;
+    this.ribbons.reset();
   }
 
   randomizeBurst() {
@@ -512,6 +650,30 @@ export class QfxEngine {
     }
   }
 
+  /** Apply a shape attractor — particles spring toward sampled points. */
+  applyShape(target: ShapeTargets) {
+    this.shapeTargets = target.points;
+    this.shapeCount = target.count;
+    // Reset pool to a fresh swarm scattered around, ready to converge.
+    this.alive.fill(0);
+    this.alphaArr.fill(0);
+    this.ribbons.reset();
+    // Fill with as many particles as needed (capped by settings.count).
+    const desired = Math.min(this.cap, Math.max(this.settings.count, Math.min(target.count * 2, this.cap)));
+    this.fillPool(desired);
+  }
+
+  clearShape() {
+    this.shapeTargets = null;
+    this.shapeCount = 0;
+    this.clear();
+    this.randomizeBurst();
+  }
+
+  hasShape(): boolean {
+    return this.shapeTargets !== null;
+  }
+
   screenshot(): string {
     this.composer.render(0);
     return this.canvas.toDataURL("image/png");
@@ -524,6 +686,9 @@ export class QfxEngine {
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
     this.geometry.dispose();
     this.material.dispose();
+    this.ribbons.dispose();
+    (this.sunMesh.geometry as THREE.BufferGeometry).dispose();
+    (this.sunMesh.material as THREE.Material).dispose();
     this.composer.dispose();
     this.renderer.dispose();
   }
